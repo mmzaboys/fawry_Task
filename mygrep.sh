@@ -10,28 +10,21 @@ show_help() {
     exit 0
 }
 
-if [ $# -eq 0 ]; then
-    echo "Error: No arguments provided." >&2
-    show_help
-    exit 1
-fi
+[ $# -eq 0 ] && { echo "Error: No arguments provided." >&2; show_help; exit 1; }
 
 show_line_numbers=false
 invert_match=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -h|--help)
-            show_help
-            ;;
-        -n|--line-numbers)
-            show_line_numbers=true
+        -h|--help) show_help ;;
+        -[nv]*)
+            [[ "$1" == *n* ]] && show_line_numbers=true
+            [[ "$1" == *v* ]] && invert_match=true
             shift
             ;;
-        -v|--invert-match)
-            invert_match=true
-            shift
-            ;;
+        -n|--line-numbers) show_line_numbers=true; shift ;;
+        -v|--invert-match) invert_match=true; shift ;;
         -*)
             echo "Error: Unknown option $1" >&2
             show_help
@@ -41,55 +34,24 @@ while [[ $# -gt 0 ]]; do
             if [ -z "$search_string" ]; then
                 search_string="$1"
             else
-                if [ -z "$file" ]; then
-                    file="$1"
-                else
-                    echo "Error: Too many arguments" >&2
-                    show_help
-                    exit 1
-                fi
+                [ -z "$file" ] && file="$1" || { echo "Error: Too many arguments" >&2; show_help; exit 1; }
             fi
             shift
             ;;
     esac
 done
 
-if [ -z "$search_string" ]; then
-    echo "Error: Missing search string" >&2
-    show_help
-    exit 1
-fi
-
-if [ -z "$file" ]; then
-    echo "Error: Missing filename" >&2
-    show_help
-    exit 1
-fi
-
-if [ ! -f "$file" ]; then
-    echo "Error: File '$file' not found." >&2
-    exit 1
-fi
+[ -z "$search_string" ] && { echo "Error: Missing search string" >&2; show_help; exit 1; }
+[ -z "$file" ] && { echo "Error: Missing filename" >&2; show_help; exit 1; }
+[ ! -f "$file" ] && { echo "Error: File '$file' not found." >&2; exit 1; }
 
 line_number=0
 while IFS= read -r line; do
-    line_number=$((line_number + 1))
-    
+    ((line_number++))
     if echo "$line" | grep -iq "$search_string"; then
-        matched=true
+        $invert_match && continue
     else
-        matched=false
+        $invert_match || continue
     fi
-
-    if $invert_match; then
-        matched=$(! $matched)
-    fi
-
-    if $matched; then
-        if $show_line_numbers; then
-            printf "%d:%s\n" "$line_number" "$line"
-        else
-            printf "%s\n" "$line"
-        fi
-    fi
+    $show_line_numbers && printf "%d:%s\n" "$line_number" "$line" || printf "%s\n" "$line"
 done < "$file"
